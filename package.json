@@ -1,0 +1,17 @@
+{
+  "name": "slothtidy",
+  "version": "1.0.0",
+  "description": "Offline AI-powered file organizer using local open-weight models via Ollama. 100% private, zero-cost.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["ollama", "qwen3", "local-ai", "file-organizer", "privacy", "open-source-ai", "hacktoberfest", "offline"],
+  "author": "Nagendra Prasad",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.3.0"
+  }
+}
