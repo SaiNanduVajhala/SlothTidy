@@ -7,10 +7,20 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["ollama", "qwen3", "local-ai", "file-organizer", "privacy", "open-source-ai", "hacktoberfest", "offline"],
+  "keywords": [
+    "ollama",
+    "qwen3",
+    "local-ai",
+    "file-organizer",
+    "privacy",
+    "open-source-ai",
+    "hacktoberfest",
+    "offline"
+  ],
   "author": "Nagendra Prasad",
   "license": "MIT",
   "dependencies": {
+    "@sentry/node": "^11.9.0",
     "cors": "^2.8.6",
     "express": "^5.3.0"
   }

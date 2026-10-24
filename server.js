@@ -4,6 +4,24 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
+// Sentry Agent Tracing & Observability
+let Sentry = null;
+try {
+  Sentry = require('@sentry/node');
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      tracesSampleRate: 1.0,
+      environment: process.env.NODE_ENV || 'development'
+    });
+    console.log('[Sentry] Agent tracing enabled');
+  } else {
+    console.log('[Sentry] SENTRY_DSN not set; running in local telemetry emulation mode');
+  }
+} catch (e) {
+  console.warn('[Sentry] @sentry/node not initialized:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
@@ -180,9 +198,11 @@ app.post('/api/scan', (req, res) => {
   }
 });
 
-// 4. Analyze a single file with local Ollama model
+// 4. Analyze a single file with local Ollama model (Instrumented with Sentry Agent Tracing)
 async function analyzeFileWithOllama(file, modelName = 'qwen3:1.7b') {
-  const prompt = `You are SlothTidy, a lazy-friendly local file organizer. 
+  const startTime = Date.now();
+  const executeAnalysis = async () => {
+    const prompt = `You are SlothTidy, a lazy-friendly local file organizer. 
 Analyze this file and decide how to organize it cleanly so the user doesn't have to lift a finger.
 
 File Name: "${file.name}"
@@ -213,46 +233,93 @@ Respond ONLY in valid JSON matching this schema:
   "reason": "Short 1-sentence explanation of why it belongs here"
 }`;
 
-  try {
-    const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: modelName,
-        prompt: prompt,
-        format: 'json',
-        stream: false,
-        options: {
-          temperature: 0.1,
-          num_predict: 250
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    let parsed;
     try {
-      parsed = JSON.parse(data.response);
-    } catch {
-      // fallback regex match if wrapped in markdown
-      const match = data.response.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-      else throw new Error("Could not parse JSON response from model");
-    }
+      const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelName,
+          prompt: prompt,
+          format: 'json',
+          stream: false,
+          options: {
+            temperature: 0.1,
+            num_predict: 250
+          }
+        })
+      });
 
-    return {
-      fileName: file.name,
-      category: parsed.category || '04_Notes_&_Lists',
-      proposedName: parsed.proposedName || file.name,
-      action: parsed.action || 'Move & Organize',
-      minutesSaved: Number(parsed.minutesSaved) || 2,
-      confidence: Number(parsed.confidence) || 0.9,
-      reason: parsed.reason || 'Categorized automatically based on file content.'
-    };
+      if (!response.ok) {
+        throw new Error(`Ollama HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const latencyMs = Date.now() - startTime;
+      const promptTokens = data.prompt_eval_count || Math.round(prompt.length / 4);
+      const evalTokens = data.eval_count || 50;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(data.response);
+      } catch {
+        const match = data.response.match(/\{[\s\S]*\}/);
+        if (match) parsed = JSON.parse(match[0]);
+        else throw new Error("Could not parse JSON response from model");
+      }
+
+      // Record Sentry AI Agent telemetry span attributes
+      if (Sentry && Sentry.getActiveSpan) {
+        const activeSpan = Sentry.getActiveSpan();
+        if (activeSpan) {
+          activeSpan.setAttribute('gen_ai.system', 'ollama');
+          activeSpan.setAttribute('gen_ai.request.model', modelName);
+          activeSpan.setAttribute('gen_ai.prompt.tokens', promptTokens);
+          activeSpan.setAttribute('gen_ai.response.completion_tokens', evalTokens);
+          activeSpan.setAttribute('gen_ai.usage.cost_usd', 0.0);
+          activeSpan.setAttribute('agent.latency_ms', latencyMs);
+          activeSpan.setAttribute('agent.file_name', file.name);
+          activeSpan.setAttribute('agent.category', parsed.category || '04_Notes_&_Lists');
+        }
+      }
+
+      console.log(`[Telemetry] ${file.name} | Model: ${modelName} | Tokens: In=${promptTokens}, Out=${evalTokens} | Latency: ${latencyMs}ms | Cost: $0.00 (Local)`);
+
+      return {
+        fileName: file.name,
+        category: parsed.category || '04_Notes_&_Lists',
+        proposedName: parsed.proposedName || file.name,
+        action: parsed.action || 'Move & Organize',
+        minutesSaved: Number(parsed.minutesSaved) || 2,
+        confidence: Number(parsed.confidence) || 0.9,
+        reason: parsed.reason || 'Categorized automatically based on file content.',
+        telemetry: {
+          latencyMs,
+          promptTokens,
+          completionTokens: evalTokens,
+          costUsd: 0.0
+        }
+      };
+    } catch (err) {
+      if (Sentry && Sentry.captureException) {
+        Sentry.captureException(err, { extra: { fileName: file.name, model: modelName } });
+      }
+      throw err;
+    }
+  };
+
+  try {
+    if (Sentry && Sentry.startSpan) {
+      return await Sentry.startSpan(
+        {
+          name: `agent.classify: ${file.name}`,
+          op: 'gen_ai.agent.inference',
+          attributes: { 'agent.name': 'SlothTidy', 'file.name': file.name }
+        },
+        async () => await executeAnalysis()
+      );
+    } else {
+      return await executeAnalysis();
+    }
   } catch (err) {
     // Graceful rule-based fallback if Ollama call encounters transient error
     let cat = '04_Notes_&_Lists';
@@ -282,28 +349,47 @@ Respond ONLY in valid JSON matching this schema:
   }
 }
 
-// 5. Batch analyze files
+// 5. Batch analyze files (SSE stream for real-time progress)
 app.post('/api/analyze-batch', async (req, res) => {
   const { files, model = 'qwen3:1.7b' } = req.body;
   if (!files || !Array.isArray(files) || files.length === 0) {
     return res.status(400).json({ error: 'No files provided for analysis' });
   }
 
+  // Set up SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
   const results = [];
   let totalMinutesSaved = 0;
 
-  for (const file of files) {
-    const analysis = await analyzeFileWithOllama(file, model);
+  for (let i = 0; i < files.length; i++) {
+    const analysis = await analyzeFileWithOllama(files[i], model);
     results.push(analysis);
     totalMinutesSaved += analysis.minutesSaved;
+
+    // Send progress event
+    res.write(`data: ${JSON.stringify({
+      type: 'progress',
+      current: i + 1,
+      total: files.length,
+      result: analysis
+    })}\n\n`);
   }
 
-  res.json({
+  // Send final complete event
+  res.write(`data: ${JSON.stringify({
+    type: 'done',
     modelUsed: model,
     totalFiles: results.length,
     totalMinutesSaved,
     results
-  });
+  })}\n\n`);
+
+  res.end();
 });
 
 // 6. Apply organization plan (Move / Rename) with Undo manifest

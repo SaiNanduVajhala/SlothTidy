@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: slothtidy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: OLLAMA_HOST
+        value: http://localhost:11434
+      - key: SENTRY_DSN
+        sync: false

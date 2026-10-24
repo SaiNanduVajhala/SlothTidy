@@ -150,15 +150,16 @@ function renderRaw(files) {
   `).join('');
 }
 
-// ─── Analyze ───
+// ─── Analyze (SSE streaming) ───
 async function analyze() {
   if (analyzing || !currentFiles.length) return;
   analyzing = true;
   btnAnalyze.disabled = true;
   progress.style.display = '';
-  progressFill.style.width = '10%';
-  progressPct.textContent = '10%';
-  progressLabel.textContent = `Running ${modelSelect.value}…`;
+  progressFill.style.width = '0%';
+  progressPct.textContent = '0%';
+  progressLabel.textContent = `Loading ${modelSelect.value}…`;
+  currentPlan = [];
 
   try {
     const res = await fetch('/api/analyze-batch', {
@@ -166,23 +167,56 @@ async function analyze() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files: currentFiles, model: modelSelect.value })
     });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
 
-    currentPlan = d.results.map((r, i) => ({
-      ...r, enabled: true, originalFile: currentFiles[i]
-    }));
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalData = null;
 
-    progressFill.style.width = '100%';
-    progressPct.textContent = '100%';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const json = line.slice(6);
+        try {
+          const event = JSON.parse(json);
+
+          if (event.type === 'progress') {
+            const pct = Math.round((event.current / event.total) * 100);
+            progressFill.style.width = pct + '%';
+            progressPct.textContent = pct + '%';
+            progressLabel.textContent = `Analyzed ${event.current} of ${event.total} — ${event.result.fileName}`;
+
+            // Add to plan incrementally
+            currentPlan.push({
+              ...event.result,
+              enabled: true,
+              originalFile: currentFiles[event.current - 1]
+            });
+            renderPlan(currentPlan);
+          }
+
+          if (event.type === 'done') {
+            finalData = event;
+          }
+        } catch {}
+      }
+    }
+
     progressLabel.textContent = 'Analysis complete';
-
     setTimeout(() => { progress.style.display = 'none'; }, 800);
 
-    renderPlan(currentPlan);
-    statTime.textContent = d.totalMinutesSaved + 'm';
+    if (finalData) {
+      statTime.textContent = finalData.totalMinutesSaved + 'm';
+      mascotQuote.textContent = `${finalData.totalMinutesSaved} minutes of sorting, handled locally.`;
+    }
     btnApply.style.display = '';
-    mascotQuote.textContent = `${d.totalMinutesSaved} minutes of sorting, handled locally.`;
   } catch (e) {
     alert('Analysis failed: ' + e.message);
     progress.style.display = 'none';
