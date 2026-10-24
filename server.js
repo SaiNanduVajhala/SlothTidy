@@ -156,6 +156,36 @@ app.post('/api/init-sample', (req, res) => {
   }
 });
 
+// 2b. Upload files to workspace sandbox (for cloud deployments on Render)
+app.post('/api/upload', (req, res) => {
+  try {
+    const { files, directory = DEFAULT_SANDBOX_DIR } = req.body;
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ error: 'No files provided' });
+    }
+
+    if (!fs.existsSync(directory)) {
+      fs.mkdirSync(directory, { recursive: true });
+    }
+
+    const saved = [];
+    for (const f of files) {
+      const safeName = path.basename(f.name);
+      const targetPath = path.join(directory, safeName);
+      if (f.base64) {
+        fs.writeFileSync(targetPath, Buffer.from(f.base64, 'base64'));
+      } else {
+        fs.writeFileSync(targetPath, f.content || '', 'utf8');
+      }
+      saved.push(safeName);
+    }
+
+    res.json({ success: true, count: saved.length, files: saved, targetDir: directory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. Scan a directory (sandbox or user specified)
 app.post('/api/scan', (req, res) => {
   try {

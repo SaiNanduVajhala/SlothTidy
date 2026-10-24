@@ -1,16 +1,15 @@
 services:
   - type: web
     name: slothtidy
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: node server.js
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: starter
     envVars:
+      - key: PORT
+        value: 3000
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: OLLAMA_HOST
-        value: http://localhost:11434
+        value: http://127.0.0.1:11434
       - key: SENTRY_DSN
         sync: false

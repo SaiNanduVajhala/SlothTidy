@@ -18,6 +18,8 @@ const statTime = $('statTime');
 const statFiles = $('statFiles');
 
 const btnSandbox = $('btnSandbox');
+const btnUpload = $('btnUpload');
+const fileUploadInput = $('fileUploadInput');
 const btnScan = $('btnScan');
 const btnExplorer = $('btnExplorer');
 const btnAnalyze = $('btnAnalyze');
@@ -365,9 +367,54 @@ checkAll.addEventListener('change', e => {
   currentPlan.forEach(p => p.enabled = on);
 });
 
-btnWhyOpen.addEventListener('click', () => modal.style.display = 'flex');
-btnCloseX.addEventListener('click', () => modal.style.display = 'none');
-btnCloseModal.addEventListener('click', () => modal.style.display = 'none');
-modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+// ─── Upload & Drag-and-Drop ───
+if (btnUpload && fileUploadInput) {
+  btnUpload.addEventListener('click', () => fileUploadInput.click());
+
+  fileUploadInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    const payloads = [];
+    for (const f of files) {
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = reader.result;
+          resolve(res.split(',')[1] || '');
+        };
+        reader.readAsDataURL(f);
+      });
+      payloads.push({ name: f.name, base64 });
+    }
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: payloads, directory: dirInput.value.trim() || targetDir })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      scan();
+    } catch (err) {
+      alert('Upload failed: ' + err.message);
+    } finally {
+      fileUploadInput.value = '';
+    }
+  });
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      fileUploadInput.files = e.dataTransfer.files;
+      fileUploadInput.dispatchEvent(new Event('change'));
+    }
+  });
+}
 
 checkStatus();
