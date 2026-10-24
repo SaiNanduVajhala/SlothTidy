@@ -14,7 +14,7 @@ With one click, SlothTidy inspects messy directories, semantically categorizes e
 ## Demo
 Here is SlothTidy in action, taking a messy download folder and organizing it in seconds with live streaming SSE updates:
 
-![SlothTidy Interface](https://raw.githubusercontent.com/nagendra-prasad/slothtidy/master/public/assets/sloth_mascot.jpg)
+![SlothTidy Interface](https://raw.githubusercontent.com/SaiNanduVajhala/SlothTidy/master/public/assets/sloth_mascot.jpg)
 
 ### Key Features
 - **Zero-Cloud Local AI**: Runs entirely on your CPU/GPU using Ollama.
@@ -27,9 +27,9 @@ Here is SlothTidy in action, taking a messy download folder and organizing it in
 ## Code
 The full source code, documentation, and configuration files are available on GitHub:
 
-{% github https://github.com/nagendra-prasad/slothtidy %}
+{% github https://github.com/SaiNanduVajhala/SlothTidy %}
 
-*(Or clone directly via `git clone https://github.com/nagendra-prasad/slothtidy.git`)*
+*(Or clone directly via `git clone https://github.com/SaiNanduVajhala/SlothTidy.git`)*
 
 ---
 
@@ -67,7 +67,7 @@ SlothTidy is built specifically to reward laziness. In benchmarking across a cha
 ## Prize Categories
 
 ### 1. Best Use of Render ($200)
-SlothTidy includes a turnkey [`render.yaml`](https://github.com/nagendra-prasad/slothtidy/blob/master/render.yaml) Blueprint configuration. You can deploy the SlothTidy web interface and backend directly to Render with a single click, providing a centralized self-hosted file management portal.
+SlothTidy includes a turnkey [`render.yaml`](https://github.com/SaiNanduVajhala/SlothTidy/blob/master/render.yaml) Blueprint configuration. You can deploy the SlothTidy web interface and backend directly to Render with a single click, providing a centralized self-hosted file management portal.
 
 ### 2. Best Use of Sentry Agent Tracing ($100)
 SlothTidy's AI reasoning workflow is instrumented with `@sentry/node` OpenTelemetry agent spans:
@@ -76,5 +76,5 @@ SlothTidy's AI reasoning workflow is instrumented with `@sentry/node` OpenTeleme
 - **Latency Diagnostics**: Pinpointed initial model memory allocation cold-start (~2,400ms) versus sustained warm-cache inference (~350ms-600ms per file).
 
 ### 3. Best Use of GitHub Copilot ($100)
-- Defined tailored agent instructions in [`.github/copilot-instructions.md`](https://github.com/nagendra-prasad/slothtidy/blob/master/.github/copilot-instructions.md) to steer GitHub Copilot on local path traversal security, regex JSON sanitization for SLMs, and atomic state recovery.
-- Automated CI and PR code reviews via [`.github/workflows/ci.yml`](https://github.com/nagendra-prasad/slothtidy/blob/master/.github/workflows/ci.yml) to ensure zero cloud token leakage and consistent test coverage.
+- Defined tailored agent instructions in [`.github/copilot-instructions.md`](https://github.com/SaiNanduVajhala/SlothTidy/blob/master/.github/copilot-instructions.md) to steer GitHub Copilot on local path traversal security, regex JSON sanitization for SLMs, and atomic state recovery.
+- Automated CI and PR code reviews via [`.github/workflows/ci.yml`](https://github.com/SaiNanduVajhala/SlothTidy/blob/master/.github/workflows/ci.yml) to ensure zero cloud token leakage and consistent test coverage.
